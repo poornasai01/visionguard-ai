@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  visionguard:
+    build: .
+    container_name: visionguard-ai
+    ports:
+      - "8000:8000"
+    volumes:
+      # Keeps your SQLite database and models saved on your local machine
+      - ./data:/app/data
+      - ./models:/app/models
+    devices:
+      # Grants the Docker container access to your Mac's built-in webcam
+      - "/dev/video0:/dev/video0" 
+    restart: unless-stopped

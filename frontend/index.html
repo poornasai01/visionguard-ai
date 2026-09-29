@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionGuard AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-200 h-screen font-sans overflow-hidden flex flex-col">
+
+    <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
+        <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            <div class="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
+            VisionGuard AI
+        </h1>
+        <div class="flex gap-2 bg-slate-900 p-1 rounded-lg border border-slate-700">
+            <button id="btn-detect" onclick="setMode('detection')" class="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium transition-colors">
+                Object Detection
+            </button>
+            <button id="btn-pose" onclick="setMode('pose')" class="px-4 py-2 rounded-md hover:bg-slate-800 text-sm font-medium transition-colors">
+                Action Engine
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex p-6 gap-6 bg-black/50 overflow-hidden">
+        
+        <!-- Video Stream Column -->
+        <div class="flex-1 flex flex-col">
+            <div class="relative w-full h-full bg-black rounded-xl border border-slate-700 shadow-2xl overflow-hidden flex items-center justify-center">
+                <img id="video-stream" src="/api/video_feed?mode=detection&source=0&conf=0.5" alt="Live Camera Feed" class="w-full h-full object-contain">
+                <div class="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded text-xs font-mono border border-slate-600">
+                    STATUS: <span class="text-emerald-400">ACTIVE</span> | MODE: <span id="mode-badge" class="text-indigo-400">DETECTION</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Telemetry & Logging Sidebar -->
+        <div class="w-96 flex flex-col gap-4">
+            
+            <!-- Live Metrics -->
+            <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 shadow-lg">
+                <h2 class="text-sm font-bold text-slate-400 mb-2 uppercase tracking-wider">Live Metrics</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                        <p class="text-xs text-slate-500">Video Source</p>
+                        <p class="text-lg font-bold text-slate-200" id="metric-source">Camera 0</p>
+                    </div>
+                    <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                        <p class="text-xs text-slate-500">DB Status</p>
+                        <p class="text-lg font-bold text-emerald-400">Connected</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Camera & AI Controls -->
+            <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 shadow-lg">
+                <h2 class="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Engine Controls</h2>
+                
+                <div class="mb-4">
+                    <label class="text-xs text-slate-500 block mb-1">Video Source (0 for Webcam, RTSP for CCTV)</label>
+                    <input type="text" id="stream-source" value="0" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-200 outline-none focus:border-indigo-500 transition-colors">
+                </div>
+                
+                <div class="mb-2">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-xs text-slate-500">Confidence Threshold</label>
+                        <span id="conf-display" class="text-xs font-mono text-indigo-400">0.50</span>
+                    </div>
+                    <input type="range" id="conf-slider" min="0.1" max="1.0" step="0.05" value="0.5" class="w-full accent-indigo-500">
+                </div>
+                
+                <button onclick="updateEngine()" class="w-full mt-3 px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
+                    Apply Settings
+                </button>
+            </div>
+
+            <!-- Event Log Feed -->
+            <div class="flex-1 bg-slate-800 border border-slate-700 rounded-xl shadow-lg flex flex-col overflow-hidden">
+                <div class="p-4 border-b border-slate-700 bg-slate-800/50">
+                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                        Event Log
+                        <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                    </h2>
+                </div>
+                <div id="event-feed" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/50">
+                    <!-- Events injected via JS -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let currentMode = 'detection';
+
+        function setMode(mode) {
+            currentMode = mode;
+            updateEngine();
+            
+            const btnDetect = document.getElementById('btn-detect');
+            const btnPose = document.getElementById('btn-pose');
+            
+            if (mode === 'detection') {
+                btnDetect.className = "px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium transition-colors";
+                btnPose.className = "px-4 py-2 rounded-md hover:bg-slate-800 text-sm font-medium transition-colors";
+            } else {
+                btnPose.className = "px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium transition-colors";
+                btnDetect.className = "px-4 py-2 rounded-md hover:bg-slate-800 text-sm font-medium transition-colors";
+            }
+        }
+
+        function updateEngine() {
+            const source = document.getElementById('stream-source').value;
+            const conf = document.getElementById('conf-slider').value;
+            
+            // Build the dynamic REST URL
+            const feedUrl = `/api/video_feed?mode=${currentMode}&source=${encodeURIComponent(source)}&conf=${conf}`;
+            
+            document.getElementById('video-stream').src = feedUrl;
+            document.getElementById('mode-badge').innerText = currentMode.toUpperCase();
+            
+            // Update the UI metric to show the connected source
+            document.getElementById('metric-source').innerText = source === '0' ? 'Camera 0' : 'RTSP/Network';
+        }
+
+        // Update confidence display number as slider moves
+        document.getElementById('conf-slider').addEventListener('input', function(e) {
+            document.getElementById('conf-display').innerText = parseFloat(e.target.value).toFixed(2);
+        });
+
+        // Telemetry polling logic
+        async function fetchEvents() {
+            try {
+                const response = await fetch('/api/events');
+                const data = await response.json();
+                
+                const feed = document.getElementById('event-feed');
+                feed.innerHTML = '';
+                
+                data.events.forEach(event => {
+                    const confPercent = Math.round(event.confidence * 100);
+                    const isPose = event.event_type === "Action Engine";
+                    const badgeColor = isPose ? "bg-amber-500/20 text-amber-400 border-amber-500/30" : "bg-indigo-500/20 text-indigo-400 border-indigo-500/30";
+                    
+                    const el = document.createElement('div');
+                    el.className = "p-3 rounded-lg bg-slate-800 border border-slate-700 text-sm flex flex-col gap-1";
+                    el.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <span class="font-bold text-slate-200 capitalize">${event.label}</span>
+                            <span class="text-xs text-slate-500 font-mono">${event.timestamp.split(' ')[1]}</span>
+                        </div>
+                        <div class="flex justify-between items-center mt-1">
+                            <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${badgeColor}">${event.event_type}</span>
+                            <span class="text-xs text-slate-400 font-mono">Conf: ${confPercent}%</span>
+                        </div>
+                    `;
+                    feed.appendChild(el);
+                });
+            } catch (err) {
+                console.error("Failed to fetch events:", err);
+            }
+        }
+
+        setInterval(fetchEvents, 2000);
+        fetchEvents();
+    </script>
+</body>
+</html>
